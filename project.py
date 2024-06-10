@@ -7,7 +7,6 @@ from Node import *
 
 
 def plotandinput():
-
     class SpaceTimeGraph:
         def __init__(self, nodes, time_slots, snapshots):
             self.nodes = nodes
@@ -27,20 +26,22 @@ def plotandinput():
                     # Add the original edge and its reverse
                     self.graph.add_edge(
                         (t, source), (t + 1, target), weight=weight)
-    #                 self.graph.add_edge((t + 1, target), (t, source), weight=weight)
+    #                 print(self.graph.nodes)
 
         def add_temporal_links(self):
             for layer in range(self.layers - 1):
                 for node in self.nodes:
                     # Add temporal links between consecutive layers
-                    self.graph.add_edge((layer, node), (layer + 1, node))
+                    self.graph.add_edge((layer, str(layer)+node),
+                                        (layer + 1, str(layer+1)+node))
+    #         print(self.graph.nodes)
 
         def visualize_graph(self):
             # Calculate the position of nodes
             pos = {}
             for layer in range(self.layers):
                 for idx, node in enumerate(self.nodes):
-                    pos[(layer, node)] = (layer, idx)
+                    pos[(layer, str(layer)+node)] = (layer, idx)
 
             # Draw the graph with the specified properties
             nx.draw(self.graph, pos, with_labels=True, node_size=1000, node_color='lightblue',
@@ -76,26 +77,29 @@ def plotandinput():
     snapshots = [
         # Time interval 1
         [
-                ['Av1', 'Bv2', 2],
-                ['Av3', 'Bv4', 1],
-                ['Av4', 'Bv5', 4]
+            ['v1', 'v2', 2],
+            ['v3', 'v4', 1],
+            ['v4', 'v5', 4]
+
         ],
         # Time interval 2
         [
-            ['Bv1', 'Cv4', 1],
-            ['Bv3', 'Cv5', 1]
+            ['v3', 'v5', 1],
+            ['v1', 'v3', 2]
         ],
         # Time interval 3
         [
-            ['Cv3', 'Dv1', 1],
-            ['Cv4', 'Dv5', 3]
+            ['v3', 'v1', 1],
+            ['v4', 'v5', 3]
         ],
         # Time interval 4
         [
-            ['Dv1', 'Ev3', 3],
-            ['Dv2', 'Ev5', 2]
+            ['v1', 'v3', 4],
+            ['v2', 'v5', 4]
         ],
     ]
+    # print(snapshots)
+
     # Ensure bidirectional connections
     # For each snapshot, add the reverse of each connection automatically
     for i, snapshot in enumerate(snapshots):
@@ -108,21 +112,52 @@ def plotandinput():
             new_snapshot.append([target, source, weight])
         snapshots[i] = new_snapshot
 
+    # To normalise the snapshot data
+    normalise_snapshot = []
+    timeinterval = 0
+    for snapshot in snapshots:
+        normalise_edges = []
+        for edge in snapshot:
+            normalise_edge = []
+            source, target, weight = edge
+            normalise_edge.append(str(timeinterval) + source)
+            normalise_edge.append(str(timeinterval+1)+target)
+            normalise_edge.append(weight)
+            normalise_edges.append(normalise_edge)
+        timeinterval = timeinterval+1
+        normalise_snapshot.append(normalise_edges)
+
+    snapshots = normalise_snapshot
+
+    # Mapping nodes to numeric value
+    mapper = {}
+    nodeNum = 1
+    for time in range(len(nodes)):
+        for layer in range(1, len(nodes)+1):
+            mapper[str(time)+'v'+str(layer)] = nodeNum
+            nodeNum += 1
+
     # Convert the snapshot data to the required format (FromNode, ToNode, Weight)
     snapshot_data = []
-
     for snapshot in snapshots:
         for edge in snapshot:
             source, target, weight = edge
-            snapshot_data.append((source[1:], target[1:], weight))
+            snapshot_data.append((source, target, weight))
 
-    # Write the snapshot data to a text file
+ # Write the snapshot data to a text file
     with open("input.txt", "w") as f:
-        f.write("{}\n".format(len(nodes)))
-        idx = 0
+        id = 1
+        f.write("{}\n".format(len(nodes)*len(nodes)))
         for edge in snapshot_data:
-            idx += 1
-            f.write("{},{},{},{}\n".format(idx, edge[0], edge[1], edge[2]))
+            source, target, weight = edge
+            f.write("{},{},{},{}\n".format(
+                id, mapper[source], mapper[target], weight))
+            id += 1
+        for time in range(len(nodes)-1):
+            for layer in range(1, len(nodes)+1):
+                f.write("{},{},{},{}\n".format(
+                    id, mapper[str(time)+'v'+str(layer)], mapper[str(time+1)+'v'+str(layer)], 0))
+                id += 1
 
     print("Snapshot data has been prepared and saved to 'input.txt'.")
     # Initialize space-time graph and visualize
@@ -130,19 +165,20 @@ def plotandinput():
     space_time_graph.add_spatial_links()
     space_time_graph.add_temporal_links()
     space_time_graph.visualize_graph()
+    return mapper
 
 
-def kspmain():
+def kspmain(mapper):
 
     # Parse the command line searching for a single string argument of the file to open
-    parser = argparse.ArgumentParser(description='ECE 643 KSP Project')
+    parser = argparse.ArgumentParser(description='KSP Project')
     parser.add_argument('--infile', dest='file_in', default="input.txt",
                         help='File to process network from and find KSP for')
-    parser.add_argument('--k', dest='k', type=int, default='3',
+    parser.add_argument('--k', dest='k', type=int, default='4',
                         help='Number of K shortest paths to find')
     parser.add_argument('--source', dest='source', type=int,
                         default='1', help='Index of starting node')
-    parser.add_argument('--sink', dest='sink', type=int, default='4',
+    parser.add_argument('--sink', dest='sink', type=int, default='-1',
                         help='Index of sink node, defaults to last node')
 
     args = parser.parse_args()
@@ -162,26 +198,33 @@ def kspmain():
     for i in range(len(nodes)-1):
         for j in range(len(nodes)):
             if i != j:
-                print("Searching for shortest path from " +
-                      str(i+1) + " to " + str(j+1))
                 shortestPath = dijkstraImpl(nodes, i, j)
                 if shortestPath != -1:
+                    print("Searching for shortest path from " +
+                          str(i+1) + " to " + str(j+1))
                     shortestPath.printPath()
-                else:
-                    print("No path found")
+                    print(" -> ".join(list(filter(lambda x: mapper[x] == (i.index + 1), mapper))[
+                        0] for i in shortestPath.nodes))
+                # else:
+                #     print("No path found")
 
     # Project Part 4
+    # print(mapper)
     # Run Yens KSP algorithm to find the 3 shortest paths
-    print("\nECE 643 Project Part 4")
+    print("\nProject Part 4")
     KSPs = yensImpl(nodes, args.source-1, args.sink-1, args.k)
     print("\n\nResults of searching for " + str(args.k) +
           " shortest paths from " + str(args.source) + " to " + str(args.sink))
-    for i, ksp in enumerate(KSPs):
-        print("Found KSP " + str(i+1))
-        ksp.printPath()
+    if KSPs is not None:
+        for i, ksp in enumerate(KSPs):
+            print("Found KSP " + str(i+1))
+            ksp.printPath()
+            print(" -> ".join(list(filter(lambda x: mapper[x] == (i.index + 1), mapper))[
+                  0] for i in ksp.nodes))
 
-    for i in range(len(KSPs), args.k):
-        print("Not enough paths to find KSP " + str(i+1))
+        for i in range(len(KSPs), args.k):
+            print("Not enough paths to find KSP " + str(i+1))
+
 
 # Takes an input file as an argument and builds a Node/Edge structure
 
@@ -210,7 +253,6 @@ def build_table(file_in):
             # The data structure uses unidirectional links, so create an edge in each direction
             nodes[FromNode].addEdge(ToNode, Weight)
             # nodes[ToNode].addEdge(FromNode, Weight);
-
     # End the "with" statement, which closes the file
 
     # Print an adjacency/weight matrix
@@ -283,7 +325,7 @@ def dijkstraImpl(nodes, fromNode, toNode):
 
         # If cost_list is empty at this point, no valid path exists to the destination
         if (len(cost_list) == 0):
-            print("All path options exhausted, no valid path exists")
+            # print("All path options exhausted, no valid path exists")
             break
         # Pick a new node!
         # Sort cost_list by the path cost of the Path component
@@ -324,59 +366,59 @@ def yensImpl(nodes, fromNode, toNode, numPaths):
     # First find the 1st shortest path using Dijkstra
     Apaths.append(dijkstraImpl(nodes, fromNode, toNode))
 
-    # Loop to find the remaining k shortest paths
-    for k in range(1, numPaths):
+    if Apaths and Apaths[0] != -1:
+        # Loop to find the remaining k shortest paths
+        for k in range(1, numPaths):
 
-        # Loop through all but the last node in the previous lowest-cost path
-        for i, spurNode in enumerate(Apaths[k-1][:-1]):
+            # Loop through all but the last node in the previous lowest-cost path
+            for i, spurNode in enumerate(Apaths[k-1][:-1]):
+                rootPath = Path(Apaths[k-1][:i+1])
+                # rootPath.printPath()
 
-            rootPath = Path(Apaths[k-1][:i+1])
-            # rootPath.printPath()
+                # Check the previous shortest paths and compare to rootPath
+                # Break any edges at the end of the rootPath if it coincides with a
+                # previous shortest path
+                for testPath in Apaths:
+                    if rootPath[:] == testPath[:i+1]:
+                        spurNode.breakEdge(testPath[i+1].index)
 
-            # Check the previous shortest paths and compare to rootPath
-            # Break any edges at the end of the rootPath if it coincides with a
-            # previous shortest path
-            for testPath in Apaths:
-                if rootPath[:] == testPath[:i+1]:
-                    spurNode.breakEdge(testPath[i+1].index)
+                # For each node rootPathNode in rootPath except spurNode:
+                #   remove rootPathNode from Graph
 
-            # For each node rootPathNode in rootPath except spurNode:
-            #   remove rootPathNode from Graph
+                # Calculate the spur path from the spur node to the sink
+                spurPath = dijkstraImpl(nodes, spurNode.index, toNode)
+                # Fix any edges that were broken
+                spurNode.fixEdges()
 
-            # Calculate the spur path from the spur node to the sink
-            spurPath = dijkstraImpl(nodes, spurNode.index, toNode)
-            # Fix any edges that were broken
-            spurNode.fixEdges()
+                if spurPath == -1:
+                    # No valid path exists, skip to next node
+                    continue
 
-            if spurPath == -1:
-                # No valid path exists, skip to next node
-                continue
+                totalPath = rootPath + spurPath
+    # Need to check if spurPath already exists in B
+                if not any(totalPath[:] == bpath[:] for bpath in Bpaths):
+                    # print("Adding a path to Bpaths:")
+                    # totalPath.printPath()
+                    Bpaths.append(totalPath)
+                else:
+                    print("Not adding a path to Bpaths because it already existed:")
+                    totalPath.printPath()
 
-            totalPath = rootPath + spurPath
-# Need to check if spurPath already exists in B
-            if not any(totalPath[:] == bpath[:] for bpath in Bpaths):
-                # print("Adding a path to Bpaths:")
-                # totalPath.printPath()
-                Bpaths.append(totalPath)
-            else:
-                print("Not adding a path to Bpaths because it already existed:")
-                totalPath.printPath()
+            # If Bpaths is empty, no more possible paths exist, so exit
+            if len(Bpaths) == 0:
+                break
+            # Sort the list of candidate paths
+            Bpaths.sort(key=lambda item: item.getPathCost())
+            # Move the lowest path cost from B to A
+            Apaths.append(Bpaths.pop(0))
+            print("Found shortest path " + str(k+1) + ": ")
+            Apaths[k].printPath()
 
-        # If Bpaths is empty, no more possible paths exist, so exit
-        if len(Bpaths) == 0:
-            break
-        # Sort the list of candidate paths
-        Bpaths.sort(key=lambda item: item.getPathCost())
-        # Move the lowest path cost from B to A
-        Apaths.append(Bpaths.pop(0))
-        print("Found shortest path " + str(k+1) + ": ")
-        Apaths[k].printPath()
-
-    return Apaths
+        return Apaths
 
 
 # Execute the main function when called from command line
 if __name__ == "__main__":
-    plotandinput()
-    kspmain()
-    input("Done with program")
+    mapper = plotandinput()
+    kspmain(mapper)
+    print("Done with program")
