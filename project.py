@@ -26,7 +26,6 @@ def plotandinput():
                     # Add the original edge and its reverse
                     self.graph.add_edge(
                         (t, source), (t + 1, target), weight=weight)
-    #                 print(self.graph.nodes)
 
         def add_temporal_links(self):
             for layer in range(self.layers - 1):
@@ -34,7 +33,6 @@ def plotandinput():
                     # Add temporal links between consecutive layers
                     self.graph.add_edge((layer, str(layer)+node),
                                         (layer + 1, str(layer+1)+node))
-    #         print(self.graph.nodes)
 
         def visualize_graph(self):
             # Calculate the position of nodes
@@ -43,8 +41,11 @@ def plotandinput():
                 for idx, node in enumerate(self.nodes):
                     pos[(layer, str(layer)+node)] = (layer, idx)
 
+            # Create a mapping for labels to show only node values without layer numbers
+            labels = {node: node[1:] for node in self.graph.nodes}
+
             # Draw the graph with the specified properties
-            nx.draw(self.graph, pos, with_labels=True, node_size=1000, node_color='lightblue',
+            nx.draw(self.graph, pos, labels=labels, with_labels=True, node_size=1000, node_color='lightblue',
                     font_size=10, edge_color='black', arrows=True, arrowstyle='-|>')
 
             # Draw edge labels with the weights of the edges
@@ -56,12 +57,9 @@ def plotandinput():
             plt.title('Space-Time Graph')
             plt.xlabel('Time')
             plt.ylabel('Nodes')
-            plt.xticks(range(self.layers))
 
             # Add x-axis and y-axis lines
-            # x-axis at y = -0.5
             plt.axhline(y=-0.5, color='black', linewidth=0.5)
-            # y-axis at x = -0.5
             plt.axvline(x=-0.5, color='black', linewidth=0.5)
 
             # Show the plot grid
@@ -69,50 +67,51 @@ def plotandinput():
             plt.show()
 
     # Example usage
-    nodes = ['v5', 'v4', 'v3', 'v2', 'v1']
-    time_slots = 3
+    nodes = ['v7', 'v6', 'v5', 'v4', 'v3', 'v2', 'v1']
+    time_slots = 4
 
     # Snapshots represented as lists of edges with weights
-    # Define the snapshot data
     snapshots = [
         # Time interval 1
         [
-            ['v1', 'v2', 2],
+            ['v1', 'v2', 1],
+            ['v2', 'v3', 1],
             ['v3', 'v4', 1],
-            ['v4', 'v5', 4]
-
+            ['v3', 'v5', 1],
+            ['v5', 'v6', 1]
         ],
         # Time interval 2
         [
-            ['v3', 'v5', 1],
-            ['v1', 'v3', 2]
+            ['v1', 'v2', 2],
+            ['v2', 'v5', 2],
+            ['v6', 'v7', 2]
         ],
         # Time interval 3
         [
-            ['v3', 'v1', 1],
-            ['v4', 'v5', 3]
+            ['v1', 'v2', 3],
+            ['v2', 'v3', 3],
+            ['v3', 'v5', 3],
+            ['v5', 'v7', 3]
         ],
         # Time interval 4
         [
+            ['v1', 'v4', 4],
+            ['v3', 'v5', 4],
             ['v1', 'v3', 4],
-            ['v2', 'v5', 4]
+            ['v5', 'v6', 4]
         ],
     ]
-    # print(snapshots)
 
     # Ensure bidirectional connections
-    # For each snapshot, add the reverse of each connection automatically
     for i, snapshot in enumerate(snapshots):
         new_snapshot = []
         for edge in snapshot:
             source, target, weight = edge
-            # Add original edge
             new_snapshot.append(edge)
-            # Add reverse edge
             new_snapshot.append([target, source, weight])
         snapshots[i] = new_snapshot
 
-    # To normalise the snapshot data
+    # Normalize the snapshot data
     normalise_snapshot = []
     timeinterval = 0
     for snapshot in snapshots:
@@ -129,7 +128,7 @@ def plotandinput():
 
     snapshots = normalise_snapshot
 
-    # Mapping nodes to numeric value
+    # Map nodes to numeric values
     mapper = {}
     nodeNum = 1
     for time in range(len(nodes)):
@@ -144,7 +143,7 @@ def plotandinput():
             source, target, weight = edge
             snapshot_data.append((source, target, weight))
 
- # Write the snapshot data to a text file
+    # Write the snapshot data to a text file
     with open("input.txt", "w") as f:
         id = 1
         f.write("{}\n".format(len(nodes)*len(nodes)))
@@ -185,7 +184,7 @@ def kspmain(mapper):
 
     # Project Parts 1 and 2
     # Open the file and build a network of nodes with edges
-    print("ECE 643 Project Part 1 and 2")
+    print("Part 1 and 2")
     nodes = build_table(args.file_in)
 
     # If sink was not explicitly specified, assign it to the last node
@@ -194,7 +193,7 @@ def kspmain(mapper):
 
     # Project Part 3
     # Run djikstra from each node (except the sink node) to each other node
-    print("\nECE 643 Project Part 3")
+    print("\nProject Part 3")
     for i in range(len(nodes)-1):
         for j in range(len(nodes)):
             if i != j:
